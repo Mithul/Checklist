@@ -1,16 +1,16 @@
 package com.example.mithul.checklist;
 
-import android.support.v7.app.ActionBarActivity;
 import android.app.Activity;
-import android.support.v7.app.ActionBar;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.ActionBarDrawerToggle;
-import android.support.v4.view.GravityCompat;
-import android.support.v4.widget.DrawerLayout;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.v4.app.ActionBarDrawerToggle;
+import android.support.v4.app.Fragment;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBar;
+import android.support.v7.app.ActionBarActivity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -28,7 +28,7 @@ import android.widget.Toast;
  * design guidelines</a> for a complete explanation of the behaviors implemented here.
  */
 public class NavigationDrawerFragment extends Fragment {
-
+    DataHolder data;
     /**
      * Remember the position of the selected item.
      */
@@ -97,16 +97,24 @@ public class NavigationDrawerFragment extends Fragment {
                 selectItem(position);
             }
         });
-        String[] s=new String[4];
-        s[0]="Hello";
-        s[1]="Hello2";
-        s[2]="Hello3";
-        s[3]="Hello4";
+
+//        Resources res;
+//        res = getResources();
+//        String text = String.format(res.getString(R.string.title_section1),
+//                "Hi", "Bye");
+        data = DataHolder.getInstance();
+//        data.sections = new ArrayList<>();
+        data.sections.add("Hello 1");
+        data.sections.add("Hello 2");
+        data.sections.add("Hello 3");
+        data.sections.add("Hello 4");
+
+//        R.string.title_section1 = "Hello1";
 
         mDrawerListView.setAdapter(new ArrayAdapter<String>(
                 getActionBar().getThemedContext(),
                 android.R.layout.simple_list_item_activated_1,
-                android.R.id.text1,s
+                android.R.id.text1, data.sections
 //                new String[]{
 //                        getString(R.string.title_section1),
 //                        getString(R.string.title_section2),
