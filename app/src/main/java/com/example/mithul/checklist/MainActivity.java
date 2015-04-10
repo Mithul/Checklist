@@ -1,6 +1,7 @@
 package com.example.mithul.checklist;
 
 import android.app.Activity;
+import android.content.Context;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
@@ -12,6 +13,13 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.Toast;
+
+import java.util.ArrayList;
 
 
 public class MainActivity extends ActionBarActivity
@@ -29,6 +37,10 @@ public class MainActivity extends ActionBarActivity
      */
     private CharSequence mTitle;
 
+    private ArrayList<CheckBox> checklist = new ArrayList<>();
+    LinearLayout checklist_table;
+    LayoutInflater checklist_inflater;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -38,10 +50,16 @@ public class MainActivity extends ActionBarActivity
                 getSupportFragmentManager().findFragmentById(R.id.navigation_drawer);
         mTitle = getTitle();
 
+        checklist_table = (LinearLayout) findViewById(R.id.checklist_layout);
+        checklist_inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+
         // Set up the drawer.
         mNavigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
+
+
     }
 
     @Override
@@ -53,11 +71,20 @@ public class MainActivity extends ActionBarActivity
                 .commit();
     }
 
+    private void populateCheckList() {
+        for (int i = 0; i < checklist.size(); i++)
+//            CheckBox item1 = new CheckBox(this);
+//        item1.setText();
+            checklist_table.addView(checklist.get(i));
+    }
+
     public void onSectionAttached(int number) {
-        if (data.sections.size() >= number)
+        if (data.sections.size() >= number) {
             mTitle = data.sections.get(number - 1);
+            populateCheckList();
+        }
         else
-            mTitle = "Error";
+            mTitle = "Checklist";
 //        switch (number) {
 //            case 1:
 //                mTitle = getString(R.string.title_section1);
@@ -92,13 +119,70 @@ public class MainActivity extends ActionBarActivity
         return super.onCreateOptionsMenu(menu);
     }
 
+
+    Button b;
+    EditText edit;
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+//        LinearLayout parent = (LinearLayout) checklist_inflater.inflate(R.layout.activity_main, null);
 
+        int id = item.getItemId();
+        if (id == R.id.add_item) {
+            edit = new EditText(this);
+//            edit.setText(String.valueOf(id));
+//        ViewGroup.LayoutParams params =new ViewGroup.LayoutParams(100,50);
+//        edit.setLayoutParams(params);
+//        params.width=100;
+            b = new Button(this);
+            b.setText("Save");
+//        LinearLayout l = R.id.linearLayout2;
+            checklist_table.addView(edit);
+            checklist_table.addView(b);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    CheckBox c = new CheckBox(MainActivity.this);
+                    checklist.add(c);
+                    c.setText(edit.getText());
+                    checklist_table.removeView(b);
+                    checklist_table.removeView(edit);
+                    Toast.makeText(MainActivity.this, "Added item", Toast.LENGTH_SHORT);
+                    checklist_table.addView(c);
+                }
+            });
+        } else if (id == R.id.add_checklist) {
+            edit = new EditText(this);
+            b = new Button(this);
+            b.setText("Save");
+            checklist_table.addView(edit);
+            checklist_table.addView(b);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    String n = new String();
+                    n = edit.getText().toString();
+                    checklist_table.removeView(b);
+                    checklist_table.removeView(edit);
+                    Toast.makeText(MainActivity.this, "Added Checklist", Toast.LENGTH_SHORT);
+                    data.sections.add(n);
+                }
+            });
+//            edit.setText(String.valueOf(id));
+
+        }
+//        c.setText(id);
+//        c.setOnLongClickListener(new View.OnLongClickListener() {
+//            @Override
+//            public boolean onLongClick(View view) {
+//                Toast.makeText(MainActivity.this,"Long press",Toast.LENGTH_SHORT);
+//                return false;
+//            }
+//        });
+//        checklist_table.addView(c);
+//        populateCheckList();
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
             return true;
@@ -106,6 +190,7 @@ public class MainActivity extends ActionBarActivity
 
         return super.onOptionsItemSelected(item);
     }
+
 
     /**
      * A placeholder fragment containing a simple view.

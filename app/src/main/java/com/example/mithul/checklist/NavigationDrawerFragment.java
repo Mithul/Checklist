@@ -20,7 +20,6 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.Toast;
 
 /**
  * Fragment used for managing interactions for and presentation of a navigation drawer.
@@ -104,10 +103,16 @@ public class NavigationDrawerFragment extends Fragment {
 //                "Hi", "Bye");
         data = DataHolder.getInstance();
 //        data.sections = new ArrayList<>();
-        data.sections.add("Hello 1");
-        data.sections.add("Hello 2");
-        data.sections.add("Hello 3");
-        data.sections.add("Hello 4");
+        data.sections.add("Starter");
+//        data.sections.add("Hello 2");
+//        data.sections.add("Hello 3");
+//        data.sections.add("Hello 4");
+//        data.sections.add("Hello 4");
+//        data.sections.add("Hello 4");
+//        data.sections.add("Hello 4");
+//        data.sections.add("Hello 4");
+//        data.sections.add("Hello 4");
+//        data.sections.add("Hello 4");
 
 //        R.string.title_section1 = "Hello1";
 
@@ -123,6 +128,19 @@ public class NavigationDrawerFragment extends Fragment {
         ));
         mDrawerListView.setItemChecked(mCurrentSelectedPosition, true);
         return mDrawerListView;
+    }
+
+    public void resetSidebar() {
+        mDrawerListView.setAdapter(new ArrayAdapter<String>(
+                getActionBar().getThemedContext(),
+                android.R.layout.simple_list_item_activated_1,
+                android.R.id.text1, data.sections
+//                new String[]{
+//                        getString(R.string.title_section1),
+//                        getString(R.string.title_section2),
+//                        getString(R.string.title_section3),
+//                }
+        ));
     }
 
     public boolean isDrawerOpen() {
@@ -262,10 +280,10 @@ public class NavigationDrawerFragment extends Fragment {
             return true;
         }
 
-        if (item.getItemId() == R.id.action_example) {
-            Toast.makeText(getActivity(), "Example action.", Toast.LENGTH_SHORT).show();
-            return true;
-        }
+//        if (item.getItemId() == R.id.action_example) {
+//            Toast.makeText(getActivity(), "Example action.", Toast.LENGTH_SHORT).show();
+//            return true;
+//        }
 
         return super.onOptionsItemSelected(item);
     }
