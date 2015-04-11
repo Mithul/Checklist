@@ -32,7 +32,9 @@ import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.json.JSONArray;
@@ -105,7 +107,8 @@ public class MainActivity extends ActionBarActivity
         Log.w("sql", "Opening");
 
         try {
-            if (i.getStringExtra("token") == "phone") {
+            if (i.getStringExtra("token").trim().equals("phone")) {
+                Log.w("debug", "Detected phone");
                 Cursor rs = db.rawQuery("select * from checklistsAdmin;", null);
                 Log.w("sql", "select * from " + mTitle + ";");
                 rs.moveToFirst();
@@ -187,8 +190,8 @@ public class MainActivity extends ActionBarActivity
                 checklist.remove(i);
             }
 
-            if (i.getStringExtra("token") == "phone") {
-
+            if (i.getStringExtra("token").trim().equals("phone")) {
+                showProgress(false);
 
                 db.execSQL("CREATE TABLE IF NOT EXISTS " + tableName(mTitle) + " \n" +
                         "(name VARCHAR(32),checked BOOLEAN); ");
@@ -329,6 +332,11 @@ public class MainActivity extends ActionBarActivity
 
             db.execSQL("CREATE TABLE IF NOT EXISTS " + tableName(mTitle) + " \n" +
                     "(name VARCHAR(32),checked INTEGER); ");
+            try {
+                db.execSQL("insert into checklistsAdmin values('" + tableName(mTitle) + "');");
+            } catch (Exception e) {
+                Log.e("sql", e.toString());
+            }
             db.execSQL("delete from " + tableName(mTitle) + ";");
 
             Log.w("checklist", checklist.size() + "");
@@ -347,9 +355,9 @@ public class MainActivity extends ActionBarActivity
 //            DBHelper db= new DBHelper(this);
         } else if (id == R.id.delete_item) {
             for (int i = 0; i < checklist.size(); i++) {
-                boolean x1 = checklist.get(i).isChecked();
+                boolean x1 = checklist.get(i).isChecked() && this.i.getStringExtra("token") != "online";
                 if (x1) {
-                    db.execSQL("delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                    db.execSQL("delete from " + tableName(mTitle) + " where name='" + checklist.get(i).getText() + "';");
                     Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
                     checklist_table.removeView(checklist.get(i));
                     checklist.remove(i);
@@ -360,10 +368,12 @@ public class MainActivity extends ActionBarActivity
         } else if (id == R.id.delete_checklist) {
             for (int i = 0; i < checklist.size(); i++) {
                 boolean x1 = checklist.get(i).isChecked();
-                db.execSQL("delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
-                Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
-                db.execSQL("delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
-                Log.w("sql", "delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
+                if (this.i.getStringExtra("token") != "online") {
+                    db.execSQL("delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                    Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                    db.execSQL("delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
+                    Log.w("sql", "delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
+                }
                 checklist_table.removeView(checklist.get(i));
                 checklist.remove(i);
             }
@@ -381,7 +391,27 @@ public class MainActivity extends ActionBarActivity
             }
             restoreActionBar();
             Toast.makeText(MainActivity.this, "Deleted Checklist", Toast.LENGTH_SHORT).show();
+        } else if (id == R.id.sync) {
+            Log.w("online", "Trying to sync");
+            JSONArray send_data = new JSONArray();
+            try {
+                for (int i = 0; i < checklist.size(); i++) {
+                    JSONObject item1 = new JSONObject();
+                    item1.accumulate("name", checklist.get(i).getText());
+                    item1.accumulate("checked", checklist.get(i).isChecked());
+                    send_data.put(item1);
+                }
+                JSONObject final_send = new JSONObject();
+                final_send.accumulate("name", mTitle);
+                final_send.accumulate("items", send_data);
+                Log.w("JSON", final_send.toString());
+                new SyncChecklist().execute(final_send);
+            } catch (JSONException e) {
+                Log.e("JSON", e.toString());
+                e.printStackTrace();
+            }
         }
+        Log.w("Menu", id + " " + R.id.sync);
 //        c.setText(id);
 //        c.setOnLongClickListener(new View.OnLongClickListener() {
 //            @Override
@@ -580,6 +610,74 @@ public class MainActivity extends ActionBarActivity
             } catch (JSONException e) {
                 Log.e("JSON", e.toString());
             }
+            showProgress(false);
+        }
+    }
+
+
+    class SyncChecklist extends AsyncTask<JSONObject, Void, JSONArray> {
+
+        private Exception exception;
+
+        protected JSONArray doInBackground(JSONObject... send_data) {
+            showProgress(true);
+            JSONArray list = new JSONArray();
+            try {
+//                URL url= new URL(urls[0]);
+                List<NameValuePair> params = new LinkedList<NameValuePair>();
+
+                send_data[0].accumulate("user_email", data.user_email);
+                send_data[0].accumulate("user_token", data.auth_token);
+                String paramString = URLEncodedUtils.format(params, "utf-8");
+
+                String URL = "http://mithul.guindytimes.com/sync_checklist?";
+                URL += paramString;
+                HttpClient httpclient = new DefaultHttpClient();
+                HttpPost x = new HttpPost(URL);
+                //sets the post request as the resulting string
+                //sets a request header so the page receving the request
+
+
+                //will know what to do with it
+
+                StringEntity se = new StringEntity(send_data[0].toString());
+
+                x.setEntity(se);
+                x.setHeader("Accept", "application/json");
+                x.setHeader("Content-type", "application/json");
+//                x.setHeader("host","http://192.168.1.5");
+                HttpResponse response = httpclient.execute(x);
+                StatusLine statusLine = response.getStatusLine();
+                if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    response.getEntity().writeTo(out);
+                    String responseString = out.toString();
+                    out.close();
+                    JSONObject temp = new JSONObject(out.toString());
+                    Log.w("JSON", temp.toString());
+                    JSONArray result = new JSONArray(temp.getString("items"));
+                    Log.w("JSON", result.toString());
+                    Log.w("html", out.toString());
+                    //..more logic
+                    return result;
+                } else {
+                    //Closes the connection.
+                    Log.w("JSON", "something wrong " + statusLine.getStatusCode());
+                    response.getEntity().getContent().close();
+                    throw new IOException(statusLine.getReasonPhrase());
+                }
+//                return list;
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("JSON", e.toString());
+                this.exception = e;
+                return null;
+            }
+        }
+
+        protected void onPostExecute(JSONArray list) {
+            // TODO: check this.exception
+            Toast.makeText(MainActivity.this, "Synced !", Toast.LENGTH_SHORT).show();
             showProgress(false);
         }
     }
