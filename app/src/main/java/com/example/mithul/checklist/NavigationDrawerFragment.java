@@ -143,6 +143,10 @@ public class NavigationDrawerFragment extends Fragment {
         ));
     }
 
+    public void moveTo(int position) {
+        selectItem(position);
+    }
+
     public boolean isDrawerOpen() {
         return mDrawerLayout != null && mDrawerLayout.isDrawerOpen(mFragmentContainerView);
     }

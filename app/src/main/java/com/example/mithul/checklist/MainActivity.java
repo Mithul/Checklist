@@ -2,12 +2,19 @@ package com.example.mithul.checklist;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.database.Cursor;
+import android.database.CursorIndexOutOfBoundsException;
+import android.database.sqlite.SQLiteDatabase;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.ActionBarActivity;
+import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -19,13 +26,35 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.NameValuePair;
+import org.apache.http.StatusLine;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.utils.URLEncodedUtils;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
 
 public class MainActivity extends ActionBarActivity
         implements NavigationDrawerFragment.NavigationDrawerCallbacks {
 
     DataHolder data = DataHolder.getInstance();
+
+    DBHelper help;
+    SQLiteDatabase db;
+
+    private View mProgressView;
 
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
@@ -40,9 +69,16 @@ public class MainActivity extends ActionBarActivity
     private ArrayList<CheckBox> checklist = new ArrayList<>();
     LinearLayout checklist_table;
     LayoutInflater checklist_inflater;
+    Intent i;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+        mProgressView = findViewById(R.id.login_progress);
+
+        help = new DBHelper(this);
+        db = openOrCreateDatabase(help.DATABASE_NAME, MODE_PRIVATE, null);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -54,12 +90,70 @@ public class MainActivity extends ActionBarActivity
         checklist_inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
 
-        // Set up the drawer.
         mNavigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
 
+        for (int i = 0; i < data.sections.size(); ) {
+            data.sections.remove(i);
+        }
+        i = this.getIntent();
 
+        Log.w("token", i.getStringExtra("token"));
+
+        db.execSQL("CREATE TABLE IF NOT EXISTS checklistsAdmin(name VARCHAR(30) primary key);");
+        Log.w("sql", "Opening");
+
+        try {
+            if (i.getStringExtra("token") == "phone") {
+                Cursor rs = db.rawQuery("select * from checklistsAdmin;", null);
+                Log.w("sql", "select * from " + mTitle + ";");
+                rs.moveToFirst();
+                do {
+                    data.sections.add(rs.getString(0));
+                } while (rs.moveToNext());
+            } else if (i.getStringExtra("token").trim().equals("online")) {
+                Log.w("debug", "Detected online");
+                new RetrieveChecklist().execute();
+
+            }
+        } catch (CursorIndexOutOfBoundsException e) {
+            db.execSQL("insert into checklistsAdmin values('Starter')");
+            data.sections.add("Starter");
+            Log.e("sql", e.toString());
+        }
+
+    }
+
+    public void showProgress(final boolean show) {
+        mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
+
+    public boolean isTableExists(CharSequence tableName) {
+
+//        if(openDb) {
+//            if(mDatabase == null || !mDatabase.isOpen()) {
+//                mDatabase = getReadableDatabase();
+//            }
+//
+//            if(!mDatabase.isReadOnly()) {
+//                mDatabase.close();
+//                mDatabase = getReadableDatabase();
+//            }
+//        }
+
+        Cursor cursor = db.rawQuery("select DISTINCT tbl_name from sqlite_master where tbl_name = '" + tableName + "'", null);
+        if (cursor != null) {
+            if (cursor.getCount() > 0) {
+                cursor.close();
+                Log.w("sql", "exists");
+                return true;
+            }
+            cursor.close();
+        }
+        Log.w("sql", "does not exist");
+        return false;
     }
 
     @Override
@@ -72,15 +166,58 @@ public class MainActivity extends ActionBarActivity
     }
 
     private void populateCheckList() {
-        for (int i = 0; i < checklist.size(); i++)
+        for (int i = 0; i < checklist.size(); i++) ;
 //            CheckBox item1 = new CheckBox(this);
 //        item1.setText();
-            checklist_table.addView(checklist.get(i));
+//            checklist_table.addView(checklist.get(i));
     }
 
     public void onSectionAttached(int number) {
         if (data.sections.size() >= number) {
             mTitle = data.sections.get(number - 1);
+            for (int i = 0; i < checklist.size(); ) {
+                checklist_table.removeView(checklist.get(i));
+                checklist.remove(i);
+            }
+
+            if (i.getStringExtra("token") == "phone") {
+
+
+                db.execSQL("CREATE TABLE IF NOT EXISTS " + tableName(mTitle) + " \n" +
+                        "(name VARCHAR(32),checked BOOLEAN); ");
+                db.execSQL("CREATE TABLE IF NOT EXISTS checklistsAdmin(name VARCHAR(30) primary key);");
+                Log.w("sql", "Opening");
+                if (isTableExists(mTitle)) {
+                    Cursor rs = db.rawQuery("select * from " + mTitle + ";", null);
+                    Log.w("sql", "select * from " + mTitle + ";");
+                    rs.moveToFirst();
+                    try {
+                        do {
+                            boolean check = rs.getInt(1) == 1;
+
+                            CheckBox c = new CheckBox(this);
+                            c.setText(rs.getString(0));
+                            if (check)
+                                c.setChecked(true);
+                            Log.w("sql", rs.getString(0) + " " + rs.getString(1) + " " + check);
+                            checklist.add(c);
+                            checklist_table.addView(c);
+                        } while (rs.moveToNext());
+                    } catch (CursorIndexOutOfBoundsException e) {
+
+//                    checklist = new ArrayList<>();
+                        Log.e("sql", e.toString());
+                    }
+                    // Set up the drawer.
+
+                }
+            } else {
+                int x = data.ids.get(number - 1);
+
+                new RetrieveItemList().execute(String.valueOf(x));
+            }
+
+
             populateCheckList();
         }
         else
@@ -96,6 +233,10 @@ public class MainActivity extends ActionBarActivity
 //                mTitle = getString(R.string.title_section3);
 //                break;
 //        }
+    }
+
+    public String tableName(CharSequence name) {
+        return TextUtils.join("_", name.toString().split(" "));
     }
 
     public void restoreActionBar() {
@@ -149,7 +290,7 @@ public class MainActivity extends ActionBarActivity
                     c.setText(edit.getText());
                     checklist_table.removeView(b);
                     checklist_table.removeView(edit);
-                    Toast.makeText(MainActivity.this, "Added item", Toast.LENGTH_SHORT);
+                    Toast.makeText(MainActivity.this, "Added item", Toast.LENGTH_SHORT).show();
                     checklist_table.addView(c);
                 }
             });
@@ -166,12 +307,73 @@ public class MainActivity extends ActionBarActivity
                     n = edit.getText().toString();
                     checklist_table.removeView(b);
                     checklist_table.removeView(edit);
-                    Toast.makeText(MainActivity.this, "Added Checklist", Toast.LENGTH_SHORT);
+                    try {
+                        db.execSQL("insert into checklistsAdmin values('" + n + "');");
+                    } catch (Exception e) {
+                        Log.e("sql", e.toString());
+                    }
+                    Toast.makeText(MainActivity.this, "Added Checklist", Toast.LENGTH_SHORT).show();
                     data.sections.add(n);
                 }
             });
 //            edit.setText(String.valueOf(id));
 
+        } else if (id == R.id.save) {
+
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + tableName(mTitle) + " \n" +
+                    "(name VARCHAR(32),checked INTEGER); ");
+            db.execSQL("delete from " + tableName(mTitle) + ";");
+
+            Log.w("checklist", checklist.size() + "");
+            for (int i = 0; i < checklist.size(); i++) {
+                boolean x1 = checklist.get(i).isChecked();
+                int x = 0;
+                if (x1)
+                    x = 1;
+//                if(checklist.get(i).isChecked())
+//                    x=1;
+                db.execSQL("insert into " + tableName(mTitle) + " values('" + checklist.get(i).getText() + "'," + x + ");");
+                Log.w("sql", "insert into " + tableName(mTitle) + " values('" + checklist.get(i).getText() + "'," + x + ");");
+            }
+            Toast.makeText(MainActivity.this, "Saved", Toast.LENGTH_SHORT).show();
+
+//            DBHelper db= new DBHelper(this);
+        } else if (id == R.id.delete_item) {
+            for (int i = 0; i < checklist.size(); i++) {
+                boolean x1 = checklist.get(i).isChecked();
+                if (x1) {
+                    db.execSQL("delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                    Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                    checklist_table.removeView(checklist.get(i));
+                    checklist.remove(i);
+                    i--;
+                }
+                Toast.makeText(MainActivity.this, "Deleted Checked Items", Toast.LENGTH_SHORT).show();
+            }
+        } else if (id == R.id.delete_checklist) {
+            for (int i = 0; i < checklist.size(); i++) {
+                boolean x1 = checklist.get(i).isChecked();
+                db.execSQL("delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                db.execSQL("delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
+                Log.w("sql", "delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
+                checklist_table.removeView(checklist.get(i));
+                checklist.remove(i);
+            }
+            for (int i = 0; i < data.sections.size(); i++)
+                if (data.sections.get(i) == mTitle) {
+                    data.sections.remove(i);
+                    break;
+                }
+            mNavigationDrawerFragment.moveTo(0);
+            if (data.sections.size() > 0)
+                mTitle = data.sections.get(0);
+            else {
+                db.execSQL("insert into checklistsAdmin values('Starter')");
+                data.sections.add("Starter");
+            }
+            restoreActionBar();
+            Toast.makeText(MainActivity.this, "Deleted Checklist", Toast.LENGTH_SHORT).show();
         }
 //        c.setText(id);
 //        c.setOnLongClickListener(new View.OnLongClickListener() {
@@ -232,4 +434,154 @@ public class MainActivity extends ActionBarActivity
         }
     }
 
+
+    class RetrieveChecklist extends AsyncTask<String, Void, JSONArray> {
+
+        private Exception exception;
+
+        protected JSONArray doInBackground(String... urls) {
+            showProgress(true);
+            JSONArray list = new JSONArray();
+            try {
+//                URL url= new URL(urls[0]);
+                List<NameValuePair> params = new LinkedList<NameValuePair>();
+
+                params.add(new BasicNameValuePair("user_email", data.user_email));
+                params.add(new BasicNameValuePair("user_token", data.auth_token));
+                String paramString = URLEncodedUtils.format(params, "utf-8");
+
+                String URL = "http://mithul.guindytimes.com/checklists.json?";
+                URL += paramString;
+                HttpClient httpclient = new DefaultHttpClient();
+                HttpGet x = new HttpGet(URL);
+                //sets the post request as the resulting string
+                //sets a request header so the page receving the request
+                //will know what to do with it
+                x.setHeader("Accept", "application/json");
+                x.setHeader("Content-type", "application/json");
+//                x.setHeader("host","http://192.168.1.5");
+                HttpResponse response = httpclient.execute(x);
+                StatusLine statusLine = response.getStatusLine();
+                if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    response.getEntity().writeTo(out);
+                    String responseString = out.toString();
+                    out.close();
+                    JSONArray result = new JSONArray(out.toString());
+                    Log.w("JSON", result.toString());
+                    Log.w("html", out.toString());
+                    //..more logic
+                    return result;
+                } else {
+                    //Closes the connection.
+                    Log.w("JSON", "something wrong " + statusLine.getStatusCode());
+                    response.getEntity().getContent().close();
+                    throw new IOException(statusLine.getReasonPhrase());
+                }
+//                return list;
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("JSON", e.toString());
+                this.exception = e;
+                return null;
+            }
+        }
+
+        protected void onPostExecute(JSONArray list) {
+            // TODO: check this.exception
+            // TODO: do something with the feed
+            try {
+                Log.w("JSON", list.length() + " length");
+                for (int i = 0; i < list.length(); i++) {
+                    data.sections.add(((JSONObject) list.get(i)).getString("name"));
+                    data.ids.add(Integer.parseInt(((JSONObject) list.get(i)).getString("id")));
+                    Log.w("JSON", ((JSONObject) list.get(i)).getString("name"));
+                }
+            } catch (JSONException e) {
+                Log.e("JSON", e.toString());
+                showProgress(false);
+            }
+        }
+    }
+
+
+    class RetrieveItemList extends AsyncTask<String, Void, JSONArray> {
+
+        private Exception exception;
+
+        protected JSONArray doInBackground(String... urls) {
+            showProgress(true);
+            JSONArray list = new JSONArray();
+            try {
+//                URL url= new URL(urls[0]);
+                List<NameValuePair> params = new LinkedList<NameValuePair>();
+
+                params.add(new BasicNameValuePair("user_email", data.user_email));
+                params.add(new BasicNameValuePair("user_token", data.auth_token));
+                String paramString = URLEncodedUtils.format(params, "utf-8");
+
+                String URL = "http://mithul.guindytimes.com/checklists/" + urls[0] + ".json?";
+                URL += paramString;
+                HttpClient httpclient = new DefaultHttpClient();
+                HttpGet x = new HttpGet(URL);
+                //sets the post request as the resulting string
+                //sets a request header so the page receving the request
+                //will know what to do with it
+                x.setHeader("Accept", "application/json");
+                x.setHeader("Content-type", "application/json");
+//                x.setHeader("host","http://192.168.1.5");
+                HttpResponse response = httpclient.execute(x);
+                StatusLine statusLine = response.getStatusLine();
+                if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    response.getEntity().writeTo(out);
+                    String responseString = out.toString();
+                    out.close();
+                    JSONObject temp = new JSONObject(out.toString());
+                    JSONArray result = new JSONArray(temp.getString("items"));
+                    Log.w("JSON", result.toString());
+                    Log.w("html", out.toString());
+                    //..more logic
+                    return result;
+                } else {
+                    //Closes the connection.
+                    Log.w("JSON", "something wrong " + statusLine.getStatusCode());
+                    response.getEntity().getContent().close();
+                    throw new IOException(statusLine.getReasonPhrase());
+                }
+//                return list;
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("JSON", e.toString());
+                this.exception = e;
+                return null;
+            }
+        }
+
+        protected void onPostExecute(JSONArray list) {
+            // TODO: check this.exception
+            // TODO: do something with the feed
+            try {
+                Log.w("JSON", list.length() + " length");
+                for (int i = 0; i < list.length(); i++) {
+                    CheckBox c = new CheckBox(MainActivity.this);
+                    c.setText(((JSONObject) list.get(i)).getString("name"));
+                    c.setChecked(((JSONObject) list.get(i)).getString("checked") == "true");
+                    checklist.add(c);
+                    checklist_table.addView(c);
+                    Log.w("JSON", ((JSONObject) list.get(i)).getString("name"));
+                }
+            } catch (JSONException e) {
+                Log.e("JSON", e.toString());
+                showProgress(false);
+            }
+        }
+    }
+
+
 }
+
+
+
+
+

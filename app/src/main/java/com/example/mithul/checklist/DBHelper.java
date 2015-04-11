@@ -9,7 +9,7 @@ import android.util.Log;
  * Created by mithul on 9/4/15.
  */
 public class DBHelper extends SQLiteOpenHelper {
-    private static final String DATABASE_NAME = "ChecklistKoreTask";
+    public static final String DATABASE_NAME = "ChecklistKoreTask";
     private static final java.lang.String DATABASE_CREATE = "";
     private static final String TABLE_COMMENTS = "";
 
@@ -28,4 +28,10 @@ public class DBHelper extends SQLiteOpenHelper {
         database.execSQL("DROP TABLE IF EXISTS " + TABLE_COMMENTS);
         onCreate(database);
     }
+
+//    private static final DBHelper holder = new DBHelper();
+
+//    public static DBHelper getInstance() {
+//        return holder;
+//    }
 }
