@@ -27,14 +27,19 @@ import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -42,6 +47,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 
@@ -97,7 +103,7 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
         DBHelper help = new DBHelper(LoginActivity.this);
         db = openOrCreateDatabase(help.DATABASE_NAME, MODE_PRIVATE, null);
 
-        Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
+        final Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
         mEmailSignInButton.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -114,8 +120,21 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
             }
         });
 
-        Button continue_signin = (Button) findViewById(R.id.prev_sign_in);
-        Button signout = (Button) findViewById(R.id.signout);
+        final Button continue_signin = (Button) findViewById(R.id.prev_sign_in);
+        final Button signout = (Button) findViewById(R.id.signout);
+
+        signout.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                new SignoutTask().execute();
+                mEmailSignInButton.setVisibility(View.VISIBLE);
+                mPasswordView.setVisibility(View.VISIBLE);
+                mEmailView.setVisibility(View.VISIBLE);
+                continue_signin.setVisibility(View.GONE);
+                signout.setVisibility(View.GONE);
+            }
+        });
+
         try {
             db.execSQL("CREATE TABLE IF NOT EXISTS sessions_table(email VARCHAR(30),token VARCHAR(50));");
             Cursor rs = db.rawQuery("select * from sessions_table;", null);
@@ -440,6 +459,95 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
                 mPasswordView.setError(getString(R.string.error_incorrect_password));
                 mPasswordView.requestFocus();
             }
+        }
+
+        @Override
+        protected void onCancelled() {
+            mAuthTask = null;
+            showProgress(false);
+        }
+    }
+
+    public class SignoutTask extends AsyncTask<Void, Void, Boolean> {
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            // TODO: attempt authentication against a network service.
+
+            try {
+                // Simulate network access.
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                return false;
+            }
+
+
+            try {
+
+                List<NameValuePair> params1 = new LinkedList<NameValuePair>();
+
+                params1.add(new BasicNameValuePair("user_email", data.user_email));
+                params1.add(new BasicNameValuePair("user_token", data.auth_token));
+                String paramString = URLEncodedUtils.format(params1, "utf-8");
+
+                //passes the results to a string builder/entity
+//                StringEntity se = new StringEntity(holder.toString());
+                String URL = "http://mithul.guindytimes.com/api/v1/sessions?";
+                URL += paramString;
+                HttpClient httpclient = new DefaultHttpClient();
+                HttpDelete x = new HttpDelete(URL);
+                //sets the post request as the resulting string
+//                x.setEntity(se);
+                //sets a request header so the page receving the request
+                //will know what to do with it
+                x.setHeader("Accept", "application/json");
+                x.setHeader("Content-type", "application/json");
+//                x.setHeader("host","http://192.168.1.5");
+                HttpResponse response = httpclient.execute(x);
+                StatusLine statusLine = response.getStatusLine();
+                if (statusLine.getStatusCode() == HttpStatus.SC_OK) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    response.getEntity().writeTo(out);
+                    String responseString = out.toString();
+                    out.close();
+//                    JSONObject result = new JSONObject(out.toString());
+//                    Log.w("JSON", result.getString("success") + " " + ((JSONObject) result.get("data")).getString("auth_token"));
+//                    Log.w("html", out.toString());
+//                    if (result.getString("success") == "true") {
+                    data.user_email = null;
+                    data.auth_token = null;
+
+                    db.execSQL("CREATE TABLE IF NOT EXISTS sessions_table(email VARCHAR(30),token VARCHAR(50));");
+                    db.execSQL("delete from sessions_table;");
+                    Log.w("sql", "Deleted user");
+
+
+                    return true;
+//                    }
+                    //..more logic
+//                } else {
+                    //Closes the connection.
+//                    response.getEntity().getContent().close();
+//                    throw new IOException(statusLine.getReasonPhrase());
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
+            // TODO: register the new account here.
+            Log.w("login", "False");
+
+            return false;
+        }
+
+        @Override
+        protected void onPostExecute(final Boolean success) {
+            Toast.makeText(LoginActivity.this, "Signout Succesful", Toast.LENGTH_SHORT).show();
+            mAuthTask = null;
+            showProgress(false);
+
+
         }
 
         @Override
