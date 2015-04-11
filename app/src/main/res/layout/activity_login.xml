@@ -63,6 +63,20 @@
             <Button
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="Sign in with previous user"
+                android:id="@+id/prev_sign_in"
+                android:layout_gravity="center_horizontal" />
+
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Signout"
+                android:id="@+id/signout"
+                android:layout_gravity="center_horizontal" />
+
+            <Button
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="Proceed without Signing In"
                 android:id="@+id/skip"
                 android:layout_gravity="center_horizontal" />

@@ -9,6 +9,8 @@ import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
+import android.database.CursorIndexOutOfBoundsException;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
@@ -60,6 +62,8 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
      */
     private UserLoginTask mAuthTask = null;
 
+    SQLiteDatabase db;
+
     private String URL = "http://mithul.guindytimes.com/api/v1/sessions";
     // UI references.
     private AutoCompleteTextView mEmailView;
@@ -90,6 +94,9 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
             }
         });
 
+        DBHelper help = new DBHelper(LoginActivity.this);
+        db = openOrCreateDatabase(help.DATABASE_NAME, MODE_PRIVATE, null);
+
         Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
         mEmailSignInButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -106,6 +113,38 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
                 LoginActivity.this.startActivity(myIntent);
             }
         });
+
+        Button continue_signin = (Button) findViewById(R.id.prev_sign_in);
+        Button signout = (Button) findViewById(R.id.signout);
+        try {
+            db.execSQL("CREATE TABLE IF NOT EXISTS sessions_table(email VARCHAR(30),token VARCHAR(50));");
+            Cursor rs = db.rawQuery("select * from sessions_table;", null);
+            rs.moveToFirst();
+            do {
+                data.user_email = (rs.getString(0));
+                data.auth_token = (rs.getString(1));
+            } while (rs.moveToNext());
+
+
+            continue_signin.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Intent myIntent = new Intent(LoginActivity.this, MainActivity.class);
+                    myIntent.putExtra("token", "online");
+                    LoginActivity.this.startActivity(myIntent);
+                }
+            });
+
+            mEmailSignInButton.setVisibility(View.GONE);
+            mPasswordView.setVisibility(View.GONE);
+            mEmailView.setVisibility(View.GONE);
+
+        } catch (CursorIndexOutOfBoundsException e) {
+            continue_signin.setVisibility(View.GONE);
+            signout.setVisibility(View.GONE);
+            Log.e("sql", e.toString());
+        }
+
 
 
         mLoginFormView = findViewById(R.id.login_form);
@@ -354,6 +393,12 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
                     if (result.getString("success") == "true") {
                         data.user_email = mEmail;
                         data.auth_token = ((JSONObject) result.get("data")).getString("auth_token");
+
+                        db.execSQL("CREATE TABLE IF NOT EXISTS sessions_table(email VARCHAR(30),token VARCHAR(50));");
+                        db.execSQL("insert into sessions_table values('" + data.user_email + "','" + data.auth_token + "')");
+                        Log.w("sql", "Saved user");
+
+
                         return true;
                     }
                     //..more logic
