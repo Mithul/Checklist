@@ -22,8 +22,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TimePicker;
 import android.widget.Toast;
 
 import org.apache.http.HttpResponse;
@@ -43,7 +45,10 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -58,6 +63,8 @@ public class MainActivity extends ActionBarActivity
 
     private View mProgressView;
 
+    private ScheduleClient scheduleClient;
+
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
      */
@@ -69,6 +76,7 @@ public class MainActivity extends ActionBarActivity
     private CharSequence mTitle;
 
     private ArrayList<CheckBox> checklist = new ArrayList<>();
+    private ArrayList<DateCheckbox> datelist = new ArrayList<>();
     LinearLayout checklist_table;
     LayoutInflater checklist_inflater;
     Intent i;
@@ -101,13 +109,32 @@ public class MainActivity extends ActionBarActivity
         }
         i = this.getIntent();
 
-        Log.w("token", i.getStringExtra("token"));
+        final DatePicker d = (DatePicker) findViewById(R.id.datePicker);
+        final TimePicker p = (TimePicker) findViewById(R.id.timePicker);
+        Button set_date = (Button) findViewById(R.id.set_date);
+        d.setVisibility(View.GONE);
+        p.setVisibility(View.GONE);
+        d.setCalendarViewShown(false);
+        set_date.setVisibility(View.GONE);
 
+        scheduleClient = new ScheduleClient(this);
+        scheduleClient.doBindService();
+
+        try {
+            Log.w("token", i.getStringExtra("token"));
+            if (i.getStringExtra("token").trim().equals("reminder"))
+                i.putExtra("token", "phone");
+
+        } catch (NullPointerException e) {
+            i.putExtra("token", "phone");
+            Log.e("Intent", e.toString());
+        }
         db.execSQL("CREATE TABLE IF NOT EXISTS checklistsAdmin(name VARCHAR(30) primary key);");
         Log.w("sql", "Opening");
 
         try {
             if (i.getStringExtra("token").trim().equals("phone")) {
+                showProgress(false);
                 Log.w("debug", "Detected phone");
                 Cursor rs = db.rawQuery("select * from checklistsAdmin;", null);
                 Log.w("sql", "select * from " + mTitle + ";");
@@ -124,6 +151,17 @@ public class MainActivity extends ActionBarActivity
             db.execSQL("insert into checklistsAdmin values('Starter')");
             data.sections.add("Starter");
             Log.e("sql", e.toString());
+        }
+
+        try {
+            for (int i = 0; i < data.sections.size(); i++)
+                if (this.i.getStringExtra("title").trim().equals(data.sections.get(i))) {
+//                onSectionAttached(i);
+                    break;
+                }
+        } catch (Exception e) {
+            i.putExtra("token", "reminder");
+            Log.e("Intent", e.toString());
         }
 
     }
@@ -221,7 +259,7 @@ public class MainActivity extends ActionBarActivity
                     // Set up the drawer.
 
                 }
-            } else {
+            } else if (i.getStringExtra("token").trim().equals("online")) {
                 int x = data.ids.get(number - 1);
 
                 new RetrieveItemList().execute(String.valueOf(x));
@@ -410,6 +448,41 @@ public class MainActivity extends ActionBarActivity
                 Log.e("JSON", e.toString());
                 e.printStackTrace();
             }
+        } else if (id == R.id.remind) {
+            final DatePicker d = (DatePicker) findViewById(R.id.datePicker);
+            final TimePicker p = (TimePicker) findViewById(R.id.timePicker);
+            Button set_date = (Button) findViewById(R.id.set_date);
+            set_date.setVisibility(View.VISIBLE);
+            d.setVisibility(View.VISIBLE);
+            p.setVisibility(View.VISIBLE);
+            set_date.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Date date = new Date(d.getYear() - 1900, d.getMonth(), d.getDayOfMonth(), p.getCurrentHour(), p.getCurrentMinute());
+                    SimpleDateFormat ft = new SimpleDateFormat("dd-MM-yyyy HH:MM");
+                    String datetime = ft.format(date);
+                    Log.w("date", datetime + " " + date.toString());
+                    String reminder = "";
+                    for (int i = 0; i < checklist.size(); i++) {
+                        if (checklist.get(i).isChecked()) {
+                            DateCheckbox x = new DateCheckbox();
+                            x.id = i;
+                            x.d = date;
+                            datelist.add(x);
+                            reminder += checklist.get(i).getText() + " ";
+
+                            // Ask our service to set an alarm for that date, this activity talks to the client that talks to the service
+
+                        }
+                    }
+                    Calendar c = Calendar.getInstance();
+                    c.set(date.getYear(), date.getMonth(), date.getDay(), date.getHours(), date.getMinutes());
+                    c.set(Calendar.SECOND, 0);
+                    scheduleClient.setAlarmForNotification(c, reminder, mTitle, i.getStringExtra("token"));
+                    Toast.makeText(MainActivity.this, "Notification set for: " + date.toString(), Toast.LENGTH_SHORT).show();
+                }
+            });
+
         }
         Log.w("Menu", id + " " + R.id.sync);
 //        c.setText(id);
@@ -534,6 +607,7 @@ public class MainActivity extends ActionBarActivity
                     Log.w("JSON", ((JSONObject) list.get(i)).getString("name"));
                 }
             } catch (JSONException e) {
+                signout();
                 Log.e("JSON", e.toString());
             }
             showProgress(false);
@@ -608,6 +682,7 @@ public class MainActivity extends ActionBarActivity
                     Log.w("JSON", ((JSONObject) list.get(i)).getString("name"));
                 }
             } catch (JSONException e) {
+                signout();
                 Log.e("JSON", e.toString());
             }
             showProgress(false);
@@ -668,6 +743,7 @@ public class MainActivity extends ActionBarActivity
                 }
 //                return list;
             } catch (Exception e) {
+                signout();
                 e.printStackTrace();
                 Log.e("JSON", e.toString());
                 this.exception = e;
@@ -682,7 +758,26 @@ public class MainActivity extends ActionBarActivity
         }
     }
 
+    private void signout() {
+        db.execSQL("CREATE TABLE IF NOT EXISTS sessions_table(email VARCHAR(30),token VARCHAR(50));");
+        db.execSQL("delete from sessions_table;");
+        Intent myIntent = new Intent(MainActivity.this, LoginActivity.class);
+        MainActivity.this.startActivity(myIntent);
+    }
 
+    @Override
+    protected void onStop() {
+        // When our activity is stopped ensure we also stop the connection to the service
+        // this stops us leaking our activity into the system *bad*
+        if (scheduleClient != null)
+            scheduleClient.doUnbindService();
+        super.onStop();
+    }
+
+    class DateCheckbox {
+        int id;
+        Date d = new Date();
+    }
 }
 
 
