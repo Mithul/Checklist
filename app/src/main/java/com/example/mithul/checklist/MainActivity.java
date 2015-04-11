@@ -74,7 +74,7 @@ public class MainActivity extends ActionBarActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
-        mProgressView = findViewById(R.id.login_progress);
+        mProgressView = findViewById(R.id.login_progress_main);
 
         help = new DBHelper(this);
         db = openOrCreateDatabase(help.DATABASE_NAME, MODE_PRIVATE, null);
@@ -126,7 +126,14 @@ public class MainActivity extends ActionBarActivity
     }
 
     public void showProgress(final boolean show) {
-        mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (mProgressView == null)
+            mProgressView = findViewById(R.id.login_progress_main);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
+            }
+        });
     }
 
 
@@ -489,7 +496,6 @@ public class MainActivity extends ActionBarActivity
 
         protected void onPostExecute(JSONArray list) {
             // TODO: check this.exception
-            // TODO: do something with the feed
             try {
                 Log.w("JSON", list.length() + " length");
                 for (int i = 0; i < list.length(); i++) {
@@ -499,8 +505,9 @@ public class MainActivity extends ActionBarActivity
                 }
             } catch (JSONException e) {
                 Log.e("JSON", e.toString());
-                showProgress(false);
             }
+            showProgress(false);
+
         }
     }
 
@@ -560,7 +567,6 @@ public class MainActivity extends ActionBarActivity
 
         protected void onPostExecute(JSONArray list) {
             // TODO: check this.exception
-            // TODO: do something with the feed
             try {
                 Log.w("JSON", list.length() + " length");
                 for (int i = 0; i < list.length(); i++) {
@@ -573,8 +579,8 @@ public class MainActivity extends ActionBarActivity
                 }
             } catch (JSONException e) {
                 Log.e("JSON", e.toString());
-                showProgress(false);
             }
+            showProgress(false);
         }
     }
 
