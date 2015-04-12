@@ -160,7 +160,7 @@ public class MainActivity extends ActionBarActivity
                     break;
                 }
         } catch (Exception e) {
-            i.putExtra("token", "reminder");
+            i.putExtra("token", "phone");
             Log.e("Intent", e.toString());
         }
 
@@ -227,10 +227,10 @@ public class MainActivity extends ActionBarActivity
                 checklist_table.removeView(checklist.get(i));
                 checklist.remove(i);
             }
-
+            Log.w("menu", i.getStringExtra("token"));
             if (i.getStringExtra("token").trim().equals("phone")) {
                 showProgress(false);
-
+                Log.w("intent", "Phone table");
                 db.execSQL("CREATE TABLE IF NOT EXISTS " + tableName(mTitle) + " \n" +
                         "(name VARCHAR(32),checked BOOLEAN); ");
                 db.execSQL("CREATE TABLE IF NOT EXISTS checklistsAdmin(name VARCHAR(30) primary key);");
@@ -393,10 +393,14 @@ public class MainActivity extends ActionBarActivity
 //            DBHelper db= new DBHelper(this);
         } else if (id == R.id.delete_item) {
             for (int i = 0; i < checklist.size(); i++) {
-                boolean x1 = checklist.get(i).isChecked() && this.i.getStringExtra("token") != "online";
+                boolean x1 = checklist.get(i).isChecked() && !this.i.getStringExtra("token").trim().equals("online");
                 if (x1) {
                     db.execSQL("delete from " + tableName(mTitle) + " where name='" + checklist.get(i).getText() + "';");
                     Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
+                    checklist_table.removeView(checklist.get(i));
+                    checklist.remove(i);
+                    i--;
+                } else if (checklist.get(i).isChecked()) {
                     checklist_table.removeView(checklist.get(i));
                     checklist.remove(i);
                     i--;
@@ -406,7 +410,7 @@ public class MainActivity extends ActionBarActivity
         } else if (id == R.id.delete_checklist) {
             for (int i = 0; i < checklist.size(); i++) {
                 boolean x1 = checklist.get(i).isChecked();
-                if (this.i.getStringExtra("token") != "online") {
+                if (!this.i.getStringExtra("token").trim().equals("online")) {
                     db.execSQL("delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
                     Log.w("sql", "delete from " + mTitle + " where name='" + checklist.get(i).getText() + "';");
                     db.execSQL("delete from checklistsAdmin where name='" + tableName(mTitle) + "';");
@@ -433,15 +437,22 @@ public class MainActivity extends ActionBarActivity
             Log.w("online", "Trying to sync");
             JSONArray send_data = new JSONArray();
             try {
+                JSONArray sections = new JSONArray();
                 for (int i = 0; i < checklist.size(); i++) {
                     JSONObject item1 = new JSONObject();
                     item1.accumulate("name", checklist.get(i).getText());
                     item1.accumulate("checked", checklist.get(i).isChecked());
                     send_data.put(item1);
                 }
+                for (int i = 0; i < data.sections.size(); i++) {
+                    JSONObject item1 = new JSONObject();
+                    item1.accumulate("name", data.sections.get(i));
+                    sections.put(item1);
+                }
                 JSONObject final_send = new JSONObject();
                 final_send.accumulate("name", mTitle);
                 final_send.accumulate("items", send_data);
+                final_send.accumulate("checklists", sections);
                 Log.w("JSON", final_send.toString());
                 new SyncChecklist().execute(final_send);
             } catch (JSONException e) {
@@ -730,25 +741,27 @@ public class MainActivity extends ActionBarActivity
                     out.close();
                     JSONObject temp = new JSONObject(out.toString());
                     Log.w("JSON", temp.toString());
-                    JSONArray result = new JSONArray(temp.getString("items"));
-                    Log.w("JSON", result.toString());
+//                    JSONArray result = new JSONArray(temp.getString("items"));
+//                    Log.w("JSON", result.toString());
                     Log.w("html", out.toString());
                     //..more logic
-                    return result;
+//                    return result;
                 } else {
                     //Closes the connection.
+                    signout();
                     Log.w("JSON", "something wrong " + statusLine.getStatusCode());
                     response.getEntity().getContent().close();
                     throw new IOException(statusLine.getReasonPhrase());
                 }
 //                return list;
             } catch (Exception e) {
-                signout();
+
                 e.printStackTrace();
                 Log.e("JSON", e.toString());
                 this.exception = e;
                 return null;
             }
+            return null;
         }
 
         protected void onPostExecute(JSONArray list) {
