@@ -325,6 +325,7 @@ public class MainActivity extends ActionBarActivity
 //        ViewGroup.LayoutParams params =new ViewGroup.LayoutParams(100,50);
 //        edit.setLayoutParams(params);
 //        params.width=100;
+
             b = new Button(this);
             b.setText("Save");
 //        LinearLayout l = R.id.linearLayout2;
